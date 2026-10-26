@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<!--
+=====================================================================
+  DESAFIO DE GENÉTICA — CEGGen × GenIA
+  Arquivo único para GitHub Pages. Instruções para a organização:
+
+  1. TROCAR A SENHA DO CADEADO
+     No <script> principal:  const SENHA_CADEADO = [0, 0, 7];
+     Acertou a 1ª pergunta → 1º número; a 2ª → 2º; a 3ª → 3º.
+
+  2. ADICIONAR OU SUBSTITUIR PERGUNTAS
+     No array PERGUNTAS, cada item segue este formato:
+       { enunciado: "Texto", alternativas: { A: "…", B: "…", C: "…" }, correta: "B" },
+     São necessárias pelo menos 3 perguntas.
+
+  3. ARQUIVOS NA PASTA assets/ (ao lado deste index.html)
+       assets/logo-cegen.png   logo do CEGGen (PNG com fundo transparente)
+       assets/logo-genia.png   logo do GenIA  (PNG com fundo transparente)
+       assets/dna-bg-claro.jpg imagem de fundo usada quando o 3D não roda
+
+  4. LIBERAR UM APARELHO (equipe do estande)
+     Endereço com  ?reset=1  no final (ou Ctrl+Shift+R por 2 s na tela inicial).
+     O bloqueio é "melhor esforço": vale por navegador. A validação real é no cadeado.
+
+  5. COMPUTADOR DO ESTANDE (várias pessoas no mesmo aparelho)
+     Abra uma vez com  ?computador  no final. Desligar: ?computador=0
+
+  6. CARTAZ COM QR CODE PARA IMPRIMIR
+     Endereço com  ?cartaz  no final → "Imprimir cartaz".
+
+  7. PLANILHA DE PARTICIPANTES E RELATÓRIO
+     Siga o arquivo COMO-CONFIGURAR-PLANILHA.md e cole o endereço gerado
+     em URL_PLANILHA, logo abaixo da senha. Sem isso, o jogo funciona
+     normalmente e guarda os registros só no próprio aparelho.
+     Relatório da equipe: endereço com  ?relatorio  no final + a senha do
+     relatório definida no Apps Script (ela NÃO fica neste arquivo).
+     Botão "Novo participante" na tela de bloqueio: pede o código da equipe (1217).
+
+  8. PUBLICAR NO GITHUB PAGES
+     Repositório público → envie index.html e a pasta assets/ →
+     Settings › Pages › Deploy from a branch › main › / (root) › Save.
+=====================================================================
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Desafio de Genética · CEGGen × GenIA</title>
+<meta name="description" content="Três perguntas de genética. Um código. Um cadeado.">
+<meta name="theme-color" content="#EAF3FA">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<style>
+/* =========================================================
+   1. TOKENS
+   ========================================================= */
+:root{
+  --bg-deep:#EAF3FA;
+  --bg-surface:rgba(255,255,255,.74);
+  --bg-surface-hi:rgba(255,255,255,.94);
+  --border-glass:rgba(16,92,150,.20);
+  --border-glass-hi:rgba(7,115,154,.55);
+  --text:#10263A;
+  --text-muted:#46607A;
+  --accent:#07739A;
+  --accent-glow:rgba(0,150,205,.30);
+  --accent-soft:rgba(7,115,154,.10);
+  --hh:72px;                                   /* altura do cabeçalho com as logos */
+  --font:'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --r-md:14px; --r-lg:20px;
+  --ease:cubic-bezier(.16,1,.3,1);
+
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* o tema é claro em qualquer configuração do sistema, de propósito */
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0;min-height:100vh;min-height:100dvh;color:var(--text);font-family:var(--font);font-size:1rem;line-height:1.55;
+  background:radial-gradient(1200px 760px at 60% 38%, #FFFFFF 0%, #E3EFF8 58%, #D2E5F2 100%);
+  background-color:var(--bg-deep);background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;-webkit-tap-highlight-color:transparent;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.hide{display:none!important}
+
+/* =========================================================
+   2. FUNDO: DNA 3D (duas camadas) E IMAGEM ESTÁTICA
+   ========================================================= */
+.bg-layer{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#rede{opacity:.95;overflow:hidden}                /* rede animada de fios (2D, sem WebGL) */
+.rede-fig{position:absolute;will-change:transform;animation:rede-gira 520s linear infinite}   /* rotação em CSS: roda na placa de vídeo */
+.rede-resp{position:absolute;inset:0;animation:rede-resp 10s ease-in-out infinite alternate}
+.rede-resp canvas{position:absolute;inset:0;width:100%;height:100%;transition:opacity 1.2s ease}
+@keyframes rede-gira{to{transform:rotate(360deg)}}
+@keyframes rede-resp{from{transform:scale(1)}to{transform:scale(1.025)}}
+#dna-back{filter:blur(6px);opacity:.55}           /* hélices distantes, desfocadas */
+#dna-canvas{opacity:.8}                          /* hélice principal */
+/* vinheta suave: clareia as bordas e dá profundidade */
+.vignette{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse at 55% 45%, transparent 52%, rgba(206,225,240,.6) 100%)}
+@media (min-width:1024px){
+  .vignette{background:linear-gradient(90deg, rgba(246,251,254,.72) 0%, rgba(246,251,254,.35) 38%, rgba(246,251,254,0) 62%),
+    radial-gradient(ellipse at 55% 45%, transparent 52%, rgba(206,225,240,.6) 100%)}
+}
+@media (max-width:639px){ #rede{opacity:.75} #dna-canvas{opacity:.55} #dna-back{opacity:.4} }
+/* fundo estático: usado com movimento reduzido ou sem WebGL (imagem em assets/dna-bg-claro.jpg) */
+.bg-static{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;
+  opacity:.6;display:none}
+body.static-bg .bg-static{display:block}
+body.static-bg #dna-back, body.static-bg #dna-canvas{display:none}
+
+/* =========================================================
+   3. ESTRUTURA E VIDRO
+   ========================================================= */
+/* cabeçalho fixo com as logos: aparece em TODAS as telas do jogo */
+.site-header{position:sticky;top:0;z-index:5;height:var(--hh);display:flex;align-items:center;justify-content:center;
+  padding:0 16px;background:rgba(255,255,255,.78);border-bottom:1px solid var(--border-glass);
+  backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);
+  box-shadow:0 10px 30px -24px rgba(16,70,120,.55)}
+.site-header .logos{display:flex;align-items:center;gap:22px}
+.site-header .vsep{width:1px;height:32px;background:var(--border-glass)}
+.site-header .tag{position:absolute;right:20px;top:50%;transform:translateY(-50%)}
+.app{position:relative;z-index:1;max-width:600px;min-height:calc(100vh - var(--hh));min-height:calc(100dvh - var(--hh));margin:0 auto;
+  padding:24px 22px 22px;display:flex;flex-direction:column;gap:24px}
+.tag{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.tag:empty{display:none}
+.screens{flex:1;display:flex;flex-direction:column}
+.screen{flex:1;display:flex;flex-direction:column;animation:in .4s var(--ease) both}
+@keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+.glass{background:var(--bg-surface);border:1px solid var(--border-glass);border-radius:var(--r-lg);
+  backdrop-filter:blur(12px) saturate(130%);-webkit-backdrop-filter:blur(12px) saturate(130%);
+  box-shadow:0 1px 0 rgba(255,255,255,.8) inset, 0 20px 46px -28px rgba(16,70,120,.38)}
+
+/* =========================================================
+   4. BOTÕES
+   ========================================================= */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:14px 30px;
+  border-radius:var(--r-md);border:1px solid transparent;background:linear-gradient(135deg,#0B78A5,#0A6A96);color:#fff;
+  font-size:.94rem;font-weight:500;letter-spacing:.04em;box-shadow:0 12px 26px -16px rgba(7,115,154,.75);
+  transition:filter .2s ease, box-shadow .2s ease, transform .15s ease, opacity .2s ease}
+@media (hover:hover){.btn:hover:not(:disabled){filter:brightness(1.1);box-shadow:0 16px 32px -14px var(--accent-glow);transform:translateY(-1px)}}
+.btn:active:not(:disabled){filter:brightness(.95);transform:none}
+.btn:disabled{cursor:not-allowed;box-shadow:none;background:rgba(150,178,200,.45);color:rgba(16,38,58,.5);border-color:rgba(16,92,150,.12)}
+.btn.quiet:disabled{background:var(--bg-surface);color:rgba(70,96,122,.5)}
+.btn.quiet{border:1px solid var(--border-glass);background:var(--bg-surface);color:var(--text-muted);box-shadow:none;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.btn.block{width:100%}
+@media (min-width:640px){.btn.auto{align-self:center;min-width:240px}}
+@media (max-width:639px){.btn.auto{width:100%}}
+
+/* =========================================================
+   5. TELA INICIAL
+   ========================================================= */
+.hero{flex:1;display:grid;grid-template-areas:"text" "rules" "cta";align-content:center;justify-items:center;text-align:center;gap:22px;padding:20px 0}
+.hero-text{grid-area:text;display:flex;flex-direction:column;align-items:center;gap:18px;
+  text-shadow:0 0 16px rgba(255,255,255,.95), 0 0 3px rgba(255,255,255,.9)}
+.hero .rules{grid-area:rules}
+.hero-cta{grid-area:cta;width:100%;display:flex;justify-content:center}
+.eyebrow{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);margin:0}
+.hero h1{font-size:clamp(2.3rem,8vw,3.6rem);font-weight:300;letter-spacing:-.025em;line-height:1.05;margin:0}
+.hero h1 b{font-weight:600;color:#06476B;text-shadow:0 0 16px rgba(255,255,255,.95), 0 0 34px rgba(0,163,217,.18)}
+.hero .sub{font-size:clamp(1rem,2.6vw,1.12rem);color:var(--text-muted);margin:0;max-width:36ch}
+.rules{display:grid;gap:10px;width:100%;margin:6px 0 4px;padding:0;text-align:left}
+.rules li{list-style:none;display:flex;gap:14px;align-items:baseline;padding:14px 18px;font-size:.9rem;color:var(--text)}
+.rules .n{font-family:var(--font-mono);font-size:.75rem;color:var(--accent);flex:none}
+
+/* =========================================================
+   6. PERGUNTA
+   ========================================================= */
+.progress{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.progress .label{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)}
+.dashes{display:flex;gap:6px}
+.dashes i{display:block;width:30px;height:2px;border-radius:2px;background:rgba(16,60,100,.18);transition:background .3s, box-shadow .3s}
+.dashes i.on{background:var(--accent);box-shadow:0 0 10px var(--accent-glow)}
+.qcard{padding:24px 22px;margin-bottom:16px}
+.question{font-size:clamp(1.15rem,3.4vw,1.4rem);font-weight:500;line-height:1.45;margin:0}
+.opts{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+.opt{display:flex;align-items:center;gap:16px;width:100%;min-height:58px;padding:16px 20px;text-align:left;
+  border-radius:var(--r-md);background:var(--bg-surface);border:1px solid var(--border-glass);color:var(--text);
+  font-size:.97rem;line-height:1.4;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:border-color .2s, background .2s, opacity .2s}
+@media (hover:hover){.opt:hover:not(:disabled){border-color:var(--border-glass-hi);background:var(--bg-surface-hi)}}
+.opt:active:not(:disabled){background:var(--bg-surface-hi)}
+.opt .k{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  font-family:var(--font-mono);font-size:.8rem;color:var(--accent);border:1px solid var(--border-glass)}
+.opt.picked{border-color:var(--border-glass-hi);background:rgba(228,245,252,.96)}   /* escolha marcada, sem certo/errado */
+.opt:disabled{cursor:default}
+.opt:disabled:not(.picked){opacity:.38}
+
+.numcard{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:26px 22px;
+  margin-bottom:18px;min-height:150px;text-align:center}
+.num{font-family:var(--font-mono);font-weight:500;font-size:4rem;line-height:1;color:var(--accent);
+  text-shadow:0 0 22px rgba(0,163,217,.25);font-variant-numeric:tabular-nums}
+.num.empty{color:rgba(70,96,122,.35);text-shadow:none}
+.num.show{animation:numIn .45s var(--ease) both}
+@keyframes numIn{from{opacity:0;transform:scale(.94);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.hint{font-size:.82rem;color:var(--text-muted)}
+.hint.wait{animation:breathe 1s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.45}50%{opacity:1}}
+
+/* =========================================================
+   7. RESULTADO, BLOQUEIO E ERRO
+   ========================================================= */
+.result{flex:1;display:flex;flex-direction:column;justify-content:center}
+.result-inner{width:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.qlayout{flex:1;display:flex;flex-direction:column}
+.qmain,.qside{display:flex;flex-direction:column}
+.codecard{padding:40px 22px 36px;text-align:center}
+.code{font-family:var(--font-mono);font-weight:500;font-size:clamp(3.4rem,14vw,5.2rem);line-height:1;color:var(--accent);
+  text-shadow:0 0 24px rgba(0,163,217,.28);margin-top:18px;font-variant-numeric:tabular-nums}
+.code .sep{color:rgba(70,96,122,.45);text-shadow:none;margin:0 .16em;font-weight:300}
+.code span{display:inline-block;animation:numIn .5s var(--ease) both}
+.result .note{color:var(--text);text-align:center;margin:0}
+.result .small{font-size:.82rem;color:var(--text-muted);text-align:center;margin:0}
+.blocked{width:100%;max-width:520px;align-self:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:40px 24px}
+.blocked svg{width:30px;height:30px;color:var(--accent);filter:drop-shadow(0 0 8px var(--accent-glow))}
+.blocked h2{font-size:1.5rem;font-weight:500;margin:0}
+.blocked p{color:var(--text-muted);margin:0;max-width:32ch}
+.blocked .prev{font-family:var(--font-mono);font-size:.88rem;color:var(--text)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:20;padding:10px 16px;font-size:14px;border-radius:12px}
+
+/* =========================================================
+   8. LOGOS (no cabeçalho fixo) E RODAPÉ
+   ========================================================= */
+.logo{height:30px;width:auto;object-fit:contain;display:block}
+.logo.tall{height:54px}            /* marca vertical: mais alta para equilibrar com a horizontal */
+.logo-fallback{display:none;font-family:var(--font-mono);font-size:.8rem;letter-spacing:.14em;color:var(--text-muted)}
+.footer{margin-top:auto;padding-top:6px;text-align:center}
+.credits{display:inline-block;font-size:.75rem;color:var(--text-muted);text-align:center;margin:0;padding:5px 14px;
+  background:rgba(255,255,255,.7);border-radius:999px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+
+/* =========================================================
+   9. CARTAZ (?cartaz) — papel branco para impressão
+   ========================================================= */
+.poster{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:32px 20px 48px}
+.sheet{background:#FFFFFF;color:#0B1324;border:1px solid var(--border-glass);border-radius:var(--r-lg);padding:54px 46px 40px;text-align:center;box-shadow:0 24px 60px -34px rgba(16,70,120,.45)}
+.sheet .p-word{font-family:var(--font-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#0A6A86;margin:0 0 26px}
+.sheet h1{font-size:clamp(2.2rem,6vw,3.2rem);font-weight:300;letter-spacing:-.02em;line-height:1.08;margin:0 0 10px}
+.sheet h1 b{font-weight:600}
+.sheet .p-sub{font-size:1.15rem;color:#475569;margin:0 0 30px}
+.qrbox{display:inline-block;padding:18px;background:#fff;border:1px solid #DCE3EC;border-radius:var(--r-md)}
+.qrbox svg{display:block;width:min(64vw,320px);height:auto}
+.sheet .p-cta{font-size:1rem;font-weight:500;margin:20px 0 6px}
+.sheet .p-url{font-family:var(--font-mono);font-size:12.5px;color:#64748B;word-break:break-all;margin:0 0 34px}
+.sheet .p-logos{display:flex;justify-content:center;align-items:center;gap:22px;margin-bottom:16px}
+.sheet .p-logos img{height:40px;width:auto}
+.sheet .p-logos img.tall{height:64px}
+.sheet .p-logos .vsep{width:1px;height:34px;background:#DCE3EC}
+.sheet .p-credit{font-size:12px;color:#64748B;margin:0}
+.poster-tools{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+@media print{
+  @page{size:A4;margin:14mm}
+  body{background:#fff!important}
+  .bg-layer,.vignette,.bg-static,.app,.site-header,.poster-tools{display:none!important}
+  .poster{padding:0;max-width:none}
+  .sheet{background:#fff;padding:0}
+  .qrbox svg{width:95mm}
+}
+
+/* =========================================================
+   10. TAMANHOS DE TELA
+   Celular em pé → base acima
+   Celular baixo (iPhone SE e parecidos) → mais compacto, rodapé no fim da página
+   Tablet → coluna mais larga, alvos de toque maiores
+   Computador e celular deitado → duas colunas
+   Telas grandes e projetor → tudo um pouco maior
+   ========================================================= */
+@media (max-width:639px){
+  :root{--hh:60px}
+  .logo{height:26px}.logo.tall{height:46px}
+  .site-header .logos{gap:16px}.site-header .vsep{height:26px}
+  .site-header .tag{display:none}
+}
+@media (max-width:360px){
+  .app{padding-left:16px;padding-right:16px}
+  .rules li{padding:12px 14px}
+  .logo{height:22px}.logo.tall{height:40px}
+}
+@media (orientation:portrait) and (max-height:700px){
+  .app{gap:16px;padding-bottom:18px}
+  .hero{gap:16px;padding:8px 0}
+  .hero-text{gap:12px}
+  .rules{gap:8px}
+  .rules li{padding:11px 16px}
+  .progress{margin-bottom:14px}
+  .qcard{padding:18px}
+  .opt{min-height:52px;padding:13px 16px}
+  .numcard{min-height:112px;padding:18px;margin-bottom:14px}
+  .num{font-size:3.3rem}
+}
+@media (min-width:720px){
+  .app{max-width:720px;padding:32px 32px 28px}
+  .opt{min-height:64px;padding:18px 22px}
+  .numcard{min-height:176px}
+  .qcard{padding:28px 26px}
+}
+@media (min-width:720px) and (max-width:1023px){
+  .btn.auto{width:auto;min-width:280px;align-self:center}
+}
+/* computador, tablet deitado e celular deitado: duas colunas */
+@media (min-width:1024px), (orientation:landscape) and (max-height:560px) and (min-width:640px){
+  .app{max-width:1100px}
+  .hero{grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);
+    grid-template-areas:"text rules" "cta rules";align-content:center;align-items:center;
+    justify-items:start;text-align:left;column-gap:56px;row-gap:28px}
+  .hero-text{align-items:flex-start}
+  .hero .rules{align-self:center;margin:0}
+  .hero-cta{justify-content:flex-start}
+  .btn.auto{width:auto;min-width:260px;align-self:flex-start}
+  .qlayout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(250px,1fr);gap:28px;align-items:start}
+  .qside{position:sticky;top:calc(var(--hh) + 16px)}
+  .qside .btn{width:100%}
+  .numcard{min-height:230px;margin-bottom:16px}
+  .num{font-size:4.6rem}
+  .result-inner{max-width:760px}
+  .code{font-size:clamp(4rem,8vw,7rem)}
+}
+/* computador/tablet com pouca altura: o resultado com a avaliação cabe sem rolar */
+@media (min-width:720px) and (max-height:900px){
+  .codecard{padding:24px 22px 20px}
+  .code{font-size:clamp(3.2rem,10vh,5rem);margin-top:8px}
+  .result-inner{gap:12px}
+  .rate{padding:14px 18px;gap:8px}
+  .star{width:42px;height:42px}
+  textarea.field{min-height:50px}
+  .hero{padding:8px 0}
+}
+/* celular deitado: pouca altura, tudo compacto */
+@media (orientation:landscape) and (max-height:560px){
+  :root{--hh:50px}
+  .logo{height:24px}.logo.tall{height:42px}
+  .site-header .vsep{height:24px}
+  .app{gap:12px;padding:12px 22px 16px}
+  .hero{padding:4px 0;row-gap:16px}
+  .hero h1{font-size:clamp(1.8rem,6vh + 1rem,2.6rem)}
+  .hero .sub{font-size:.95rem}
+  .rules{gap:8px}
+  .rules li{padding:10px 14px}
+  .progress{margin-bottom:10px}
+  .qcard{padding:14px 18px;margin-bottom:10px}
+  .question{font-size:1.05rem}
+  .opts{gap:8px;margin-bottom:0}
+  .opt{min-height:46px;padding:10px 14px}
+  .numcard{min-height:120px;padding:14px;margin-bottom:10px}
+  .num{font-size:3rem}
+  .codecard{padding:22px 18px}
+  .code{font-size:clamp(2.6rem,12vh,4rem);margin-top:10px}
+  .result-inner{gap:12px}
+}
+@media (min-width:1440px){
+  html{font-size:17px}
+  :root{--hh:84px}
+  .app{max-width:1200px}
+  .logo{height:36px}.logo.tall{height:64px}
+}
+@media (min-width:1920px){
+  html{font-size:19px}
+  :root{--hh:96px}
+  .app{max-width:1360px}
+  .logo{height:42px}.logo.tall{height:74px}
+}
+
+/* =========================================================
+   10b. ENTRADA, AVALIAÇÃO, JANELA DA EQUIPE E RELATÓRIO
+   ========================================================= */
+.entry{width:100%;max-width:440px;display:flex;flex-direction:column;gap:10px;text-align:left;padding:18px;
+  background:var(--bg-surface);border:1px solid var(--border-glass);border-radius:var(--r-lg);
+  backdrop-filter:blur(14px) saturate(130%);-webkit-backdrop-filter:blur(14px) saturate(130%);
+  box-shadow:0 1px 0 rgba(255,255,255,.8) inset, 0 20px 46px -28px rgba(16,70,120,.38)}
+.flabel{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)}
+.field{width:100%;min-height:50px;padding:12px 16px;border-radius:var(--r-md);border:1px solid var(--border-glass);
+  background:var(--bg-surface);color:var(--text);font:inherit;font-size:1rem;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:border-color .2s, box-shadow .2s}
+.field::placeholder{color:#5F7890}
+.field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,163,217,.22)}
+textarea.field{min-height:64px;resize:vertical;line-height:1.45}
+.consent{display:flex;gap:12px;align-items:flex-start;font-size:.8rem;line-height:1.45;color:var(--text-muted);cursor:pointer;padding:4px 0 6px}
+.consent input{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent);cursor:pointer}
+.entry .btn{margin-top:4px}
+
+.rate{padding:20px 20px 18px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.rate-q{margin:0;font-weight:500}
+.stars{display:flex;gap:6px}
+.star{width:48px;height:48px;border:0;background:none;padding:0;display:grid;place-items:center;border-radius:12px}
+.star svg{width:32px;height:32px;fill:none;stroke:rgba(70,96,122,.5);stroke-width:1.4;transition:fill .15s, stroke .15s, transform .15s}
+.star.on svg{fill:var(--accent);stroke:var(--accent);filter:drop-shadow(0 0 6px var(--accent-glow))}
+@media (hover:hover){.star:hover svg{transform:scale(1.08)}}
+.rate .field{max-width:440px}
+.rate .btn.auto{align-self:center}
+.rate-ok{margin:0;color:var(--accent);font-size:.9rem}
+.rate.sent .stars,.rate.sent .field,.rate.sent #btnAvaliar{display:none}
+
+.staffnote{margin:0;font-size:.75rem;color:var(--text-muted)}
+.blocked .btn{margin-top:8px}
+
+.modal{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:20px;background:rgba(206,224,238,.7);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.mbox{width:100%;max-width:380px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.mbox h3{margin:0;font-size:1.15rem;font-weight:500}
+.mbox p{margin:0;color:var(--text-muted);font-size:.9rem}
+.mbox .field{font-family:var(--font-mono);letter-spacing:.3em;text-align:center;font-size:1.2rem}
+.merr{color:#B3261E!important}
+.mact{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
+.mact .btn{min-height:46px;padding:10px 20px}
+
+.rep{display:flex;flex-direction:column;gap:16px;width:100%}
+.rep-head h2{margin:0 0 4px;font-size:1.5rem;font-weight:500}
+.rep-src{margin:0;font-size:.82rem;color:var(--text-muted)}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.kpi{padding:16px}
+.kpi b{display:block;font-family:var(--font-mono);font-size:1.8rem;font-weight:500;color:var(--accent);line-height:1.1}
+.kpi span{font-size:.78rem;color:var(--text-muted)}
+.rep-grid{display:grid;gap:16px}
+.rep-block{padding:18px}
+.rep-block h3{margin:0 0 12px;font-family:var(--font-mono);font-size:.75rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted);font-weight:500}
+.hbar{display:grid;grid-template-columns:minmax(56px,auto) 1fr 44px;gap:10px;align-items:center;font-size:.85rem;margin:6px 0}
+.hbar .lbl{color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar .trk{height:8px;border-radius:6px;background:rgba(16,60,100,.10);overflow:hidden}
+.hbar .trk i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.hbar .val{font-family:var(--font-mono);text-align:right;color:var(--text)}
+.hbar.q{grid-template-columns:minmax(0,1fr) 120px 44px}
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rep-tab{width:100%;border-collapse:collapse;font-size:.82rem;min-width:560px}
+.rep-tab th,.rep-tab td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(16,60,100,.10);white-space:nowrap}
+.rep-tab th{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:500}
+.rep-actions{display:flex;flex-wrap:wrap;gap:10px}
+.rep-actions .btn{flex:1 1 200px}
+.vazio{color:var(--text-muted);font-size:.88rem;margin:0}
+@media (min-width:720px){
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .rep-grid{grid-template-columns:1fr 1fr}
+}
+/* no computador, o formulário de entrada fica alinhado à esquerda com o título */
+@media (min-width:1024px), (orientation:landscape) and (max-height:560px) and (min-width:640px){
+  .entry{max-width:420px}
+}
+@media (orientation:landscape) and (max-height:560px){
+  .field{min-height:42px;padding:8px 14px}
+  .consent{font-size:.74rem}
+}
+
+/* =========================================================
+   11. MENOS MOVIMENTO
+   ========================================================= */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<!-- Substitua o src por assets/dna-bg-claro.jpg se quiser a imagem estática -->
+<img class="bg-static" src="assets/dna-bg-claro.jpg" alt="" aria-hidden="true">
+<!-- fundo animado: rede de fios (2D) + DNA 3D em duas camadas (distante desfocada e principal) -->
+<div id="rede" class="bg-layer" aria-hidden="true"></div>
+<canvas id="dna-back" class="bg-layer" aria-hidden="true"></canvas>
+<canvas id="dna-canvas" class="bg-layer" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<!-- CABEÇALHO FIXO COM AS LOGOS: fica visível em todas as telas -->
+<header class="site-header" id="siteHeader">
+  <div class="logos">
+    <img src="assets/logo-cegen.png" alt="CEGGen — Centro de Excelência em Genética e Genômica" class="logo"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+    <span class="logo-fallback">CEGGen</span>
+    <span class="vsep" aria-hidden="true"></span>
+    <img src="assets/logo-genia.png" alt="GenIA" class="logo tall"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+    <span class="logo-fallback">GenIA</span>
+  </div>
+  <span class="tag" id="tag"></span>
+</header>
+
+<main class="app" id="app">
+
+  <div class="screens">
+    <!-- ============ TELA 1 · INÍCIO ============ -->
+    <section class="screen" id="tela-inicio">
+      <div class="hero">
+        <div class="hero-text">
+          <p class="eyebrow">Estande de genômica</p>
+          <h1>Desafio de <b>Genética</b></h1>
+          <p class="sub">Responda 3 perguntas de genética básica e receba um código de 3 dígitos para tentar abrir o cadeado.</p>
+        </div>
+        <ol class="rules">
+          <li class="glass"><span class="n">01</span><span>Cada resposta gera um número de 0 a 9.</span></li>
+          <li class="glass"><span class="n">02</span><span>O site não diz se você acertou — só mostra o número.</span></li>
+          <li class="glass"><span class="n">03</span><span>Leve os três números até a caixa.</span></li>
+        </ol>
+        <div class="hero-cta">
+          <form class="entry" id="formEntrada" novalidate>
+            <label class="flabel" for="nome">Seu nome</label>
+            <input class="field" id="nome" name="nome" type="text" autocomplete="given-name" maxlength="60"
+                   placeholder="Como você quer ser chamado(a)" required>
+            <label class="consent">
+              <input type="checkbox" id="consent">
+              <span>Autorizo o registro do meu nome, das minhas respostas e da minha avaliação para pesquisa do CEGGen e do GenIA. Nos resultados publicados, ninguém será identificado.</span>
+            </label>
+            <button class="btn auto" id="btnIniciar" type="submit" disabled>Iniciar desafio</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TELA 2 · PERGUNTA ============ -->
+    <section class="screen hide" id="tela-pergunta">
+      <div class="progress">
+        <span class="label" id="progTxt">Pergunta 1 de 3</span>
+        <div class="dashes" aria-hidden="true"><i></i><i></i><i></i></div>
+      </div>
+      <div class="qlayout">
+        <div class="qmain">
+          <div class="qcard glass"><h2 class="question" id="qText"></h2></div>
+          <div class="opts" id="opts" role="group" aria-label="Alternativas"></div>
+        </div>
+        <div class="qside">
+          <div class="numcard glass" aria-live="polite">
+            <span class="num empty" id="num">—</span>
+            <span class="hint" id="hint">Escolha uma alternativa</span>
+          </div>
+          <button class="btn auto" id="btnProxima" type="button" disabled>Próxima</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TELA 3 · RESULTADO ============ -->
+    <section class="screen hide" id="tela-resultado">
+      <div class="result"><div class="result-inner">
+        <div class="codecard glass">
+          <p class="eyebrow">Seu código</p>
+          <div class="code" id="code" aria-live="polite"></div>
+        </div>
+        <p class="note">Leve este código até a caixa e tente abrir o cadeado.</p>
+        <div class="rate glass" id="rateBox">
+          <p class="rate-q">Como você avalia o jogo?</p>
+          <div class="stars" id="stars" role="radiogroup" aria-label="Nota de 1 a 5"></div>
+          <textarea class="field" id="comentario" rows="2" maxlength="300" placeholder="Comentário (opcional)"></textarea>
+          <button class="btn auto" id="btnAvaliar" type="button" disabled>Enviar avaliação</button>
+          <p class="rate-ok hide" id="rateOk" role="status">Obrigado pela avaliação!</p>
+        </div>
+        <button class="btn quiet block" id="btnDenovo" type="button" disabled>Jogar novamente</button>
+        <p class="small" id="denovoNota">Cada pessoa tem uma participação.</p>
+      </div></div>
+    </section>
+
+    <!-- ============ TELA DE BLOQUEIO ============ -->
+    <section class="screen hide" id="tela-bloqueio">
+      <div class="blocked glass" style="flex:0;margin:auto 0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+        </svg>
+        <h2>Você já participou</h2>
+        <p>Procure a equipe do estande se precisar de ajuda.</p>
+        <p class="prev" id="codigoAnterior"></p>
+        <button class="btn quiet" id="btnNovoBloq" type="button">Novo participante</button>
+        <p class="staffnote">Uso da equipe do estande.</p>
+      </div>
+    </section>
+
+    <!-- ============ RELATÓRIO DA EQUIPE (?relatorio) ============ -->
+    <section class="screen hide" id="tela-relatorio">
+      <div class="rep">
+        <div class="rep-head">
+          <h2>Relatório do desafio</h2>
+          <p class="rep-src" id="repFonte"></p>
+        </div>
+        <div class="kpis" id="kpis"></div>
+        <div class="rep-grid">
+          <div class="glass rep-block"><h3>Avaliação do jogo</h3><div id="repNotas"></div></div>
+          <div class="glass rep-block"><h3>Participantes por dia</h3><div id="repDias"></div></div>
+        </div>
+        <div class="glass rep-block"><h3>Acerto por pergunta</h3><div id="repPerg"></div></div>
+        <div class="glass rep-block"><h3>Últimos participantes</h3><div class="tablewrap"><table class="rep-tab" id="repTab"></table></div></div>
+        <div class="rep-actions">
+          <button class="btn" id="btnCSV" type="button">Baixar planilha (CSV)</button>
+          <a class="btn quiet hide" id="lnkPlan" target="_blank" rel="noopener">Abrir planilha do Google</a>
+          <button class="btn quiet" id="btnAtualizar" type="button">Atualizar</button>
+          <button class="btn quiet" id="btnSairRel" type="button">Voltar ao jogo</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TELA DE ERRO ============ -->
+    <section class="screen hide" id="tela-erro">
+      <div class="blocked glass" style="flex:0;margin:auto 0">
+        <h2>O desafio ainda não está pronto</h2>
+        <p id="erroTxt">O banco precisa de pelo menos 3 perguntas válidas. Avise a equipe do estande.</p>
+      </div>
+    </section>
+  </div>
+
+  <footer class="footer" id="footer">
+    <p class="credits">Desenvolvido pela equipe de Bioinformática do CEGGen em parceria com a equipe do GenIA.</p>
+  </footer>
+</main>
+
+<!-- janela do código da equipe -->
+<div class="modal hide" id="modalEquipe" role="dialog" aria-modal="true" aria-labelledby="mTit">
+  <form class="glass mbox" id="formEquipe" novalidate>
+    <h3 id="mTit">Acesso da equipe</h3>
+    <p id="mTxt">Digite o código da equipe para liberar um novo participante.</p>
+    <input class="field" id="codEquipe" type="password" inputmode="numeric" maxlength="12" autocomplete="off" aria-label="Código da equipe">
+    <p class="merr hide" id="mErr" role="alert">Código incorreto.</p>
+    <div class="mact">
+      <button type="button" class="btn quiet" id="mCancel">Cancelar</button>
+      <button type="submit" class="btn">Confirmar</button>
+    </div>
+  </form>
+</div>
+
+
+
+<!-- ============ CARTAZ (?cartaz) ============ -->
+<div class="poster hide" id="poster">
+  <div class="sheet">
+    <p class="p-word">CEGGen · GenIA</p>
+    <h1>Desafio de <b>Genética</b></h1>
+    <p class="p-sub">Três perguntas. Um código. Um cadeado.</p>
+    <div class="qrbox" id="qrbox"></div>
+    <p class="p-cta">Aponte a câmera do celular para jogar</p>
+    <p class="p-url" id="posterUrl"></p>
+    <div class="p-logos">
+      <img src="assets/logo-cegen.png" alt="CEGGen" onerror="this.style.display='none'">
+      <span class="vsep" aria-hidden="true"></span>
+      <img src="assets/logo-genia.png" alt="GenIA" class="tall" onerror="this.style.display='none'">
+    </div>
+    <p class="p-credit">Desenvolvido pela equipe de Bioinformática do CEGGen em parceria com a equipe do GenIA.</p>
+  </div>
+  <div class="poster-tools">
+    <button class="btn" id="btnImprimir" type="button">Imprimir cartaz</button>
+    <button class="btn quiet" id="btnBaixarQR" type="button">Baixar só o QR Code</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   A. CONFIGURAÇÃO
+   ========================================================= */
+
+// Combinação do cadeado. Acertou a 1ª → 1º número; a 2ª → 2º; a 3ª → 3º.
+const SENHA_CADEADO = [0, 0, 7];
+
+// Semente dos números de ERRO: nunca repetem o dígito da senha e são sempre
+// os mesmos para a mesma pergunta + alternativa, então jogar de novo e
+// repetir a escolha não revela qual resposta estava certa.
+const SAL = "feira-genetica-2026";
+
+// Reset por URL: ?reset=1 (troque por uma palavra só da equipe, se quiser).
+const CHAVE_RESET = "1";
+
+// Modo computador (?computador): volta sozinho ao início após o resultado.
+const VOLTA_SOZINHO_SEG = 45;
+
+// Código da equipe: libera "Novo participante" na tela de bloqueio.
+// Atenção: este arquivo é público, então quem abrir o código-fonte vê este número.
+// Por isso o relatório da planilha usa OUTRA senha, guardada só no Apps Script.
+const CODIGO_EQUIPE = "1217";
+
+// Endereço do App da Web do Google Apps Script (ver COMO-CONFIGURAR-PLANILHA.md).
+// Vazio = os registros ficam só neste aparelho e aparecem no relatório local.
+const URL_PLANILHA = "";
+
+// Link da planilha do Google (opcional): aparece como botão no relatório.
+const LINK_PLANILHA = "";
+
+/* =========================================================
+   B. BANCO DE PERGUNTAS
+   ========================================================= */
+const PERGUNTAS = [
+  {
+    enunciado: "O que significa a sigla DNA?",
+    alternativas: { A: "Ácido desoxirribonucleico", B: "Ácido ribonucleico", C: "Ácido nucleico proteico" },
+    correta: "A"
+  },
+  {
+    enunciado: "Qual das alternativas apresenta uma base nitrogenada do DNA?",
+    alternativas: { A: "Uracila", B: "Adenina", C: "Glicose" },
+    correta: "B"
+  },
+  {
+    enunciado: "No DNA, a adenina (A) se liga a qual base nitrogenada?",
+    alternativas: { A: "Guanina", B: "Citosina", C: "Timina" },
+    correta: "C"
+  },
+  {
+    enunciado: "No DNA, a guanina (G) se liga a:",
+    alternativas: { A: "Citosina", B: "Adenina", C: "Timina" },
+    correta: "A"
+  },
+  {
+    enunciado: "Qual base nitrogenada está presente no RNA, mas não no DNA?",
+    alternativas: { A: "Timina", B: "Uracila", C: "Guanina" },
+    correta: "B"
+  },
+  {
+    enunciado: "Qual é o formato característico da molécula de DNA?",
+    alternativas: { A: "Linha reta", B: "Círculo simples", C: "Dupla hélice" },
+    correta: "C"
+  },
+  {
+    enunciado: "Qual é a principal função do DNA?",
+    alternativas: { A: "Armazenar informações genéticas", B: "Produzir energia diretamente", C: "Transportar oxigênio" },
+    correta: "A"
+  },
+  {
+    enunciado: "Onde está localizada a maior parte do DNA de uma célula humana?",
+    alternativas: { A: "Na membrana plasmática", B: "No núcleo", C: "No citoplasma" },
+    correta: "B"
+  },
+  {
+    enunciado: "Quantos cromossomos existem normalmente em uma célula somática humana?",
+    alternativas: { A: "23", B: "44", C: "46" },
+    correta: "C"
+  },
+  {
+    enunciado: "Quantos pares de cromossomos existem normalmente nas células somáticas humanas?",
+    alternativas: { A: "23 pares", B: "46 pares", C: "22 pares" },
+    correta: "A"
+  },
+  {
+    enunciado: "O que é um gene?",
+    alternativas: { A: "Um tipo de célula", B: "Um segmento de DNA com informação funcional", C: "Uma proteína do sangue" },
+    correta: "B"
+  },
+  {
+    enunciado: "Qual molécula participa diretamente da síntese de proteínas levando a informação genética aos ribossomos?",
+    alternativas: { A: "DNA polimerase", B: "Lipídio", C: "RNA mensageiro" },
+    correta: "C"
+  },
+  {
+    enunciado: "Quais são as quatro bases nitrogenadas do DNA?",
+    alternativas: { A: "Adenina, timina, citosina e guanina", B: "Adenina, uracila, citosina e guanina", C: "Adenina, timina, glicose e guanina" },
+    correta: "A"
+  },
+  {
+    enunciado: "Qual açúcar está presente no DNA?",
+    alternativas: { A: "Ribose", B: "Desoxirribose", C: "Glicose" },
+    correta: "B"
+  },
+  {
+    enunciado: "Qual açúcar está presente no RNA?",
+    alternativas: { A: "Desoxirribose", B: "Frutose", C: "Ribose" },
+    correta: "C"
+  },
+  {
+    enunciado: "Qual cientista é conhecido como o pai da Genética?",
+    alternativas: { A: "Gregor Mendel", B: "Charles Darwin", C: "Louis Pasteur" },
+    correta: "A"
+  },
+  {
+    enunciado: "O que a Genética estuda?",
+    alternativas: { A: "Apenas os microrganismos", B: "A hereditariedade e a variação biológica", C: "Apenas os órgãos humanos" },
+    correta: "B"
+  },
+  {
+    enunciado: "O que são cromossomos?",
+    alternativas: { A: "Tipos de vitaminas", B: "Moléculas de gordura", C: "Estruturas formadas por DNA associado a proteínas" },
+    correta: "C"
+  },
+  {
+    enunciado: "Qual é a unidade básica da hereditariedade?",
+    alternativas: { A: "Gene", B: "Ribossomo", C: "Mitocôndria" },
+    correta: "A"
+  },
+  {
+    enunciado: "O que significa hereditariedade?",
+    alternativas: { A: "A produção de energia celular", B: "A transmissão de características genéticas entre gerações", C: "A divisão do citoplasma" },
+    correta: "B"
+  },
+  {
+    enunciado: "Qual processo produz duas células-filhas geneticamente semelhantes à célula original, em condições normais?",
+    alternativas: { A: "Meiose", B: "Fecundação", C: "Mitose" },
+    correta: "C"
+  },
+  {
+    enunciado: "Qual processo de divisão celular está envolvido na formação dos gametas humanos?",
+    alternativas: { A: "Meiose", B: "Mitose", C: "Tradução" },
+    correta: "A"
+  },
+  {
+    enunciado: "Quantos cromossomos normalmente existem em um espermatozoide humano?",
+    alternativas: { A: "46", B: "23", C: "22 pares" },
+    correta: "B"
+  },
+  {
+    enunciado: "Como se chama uma alteração na sequência do DNA?",
+    alternativas: { A: "Tradução", B: "Fecundação", C: "Mutação" },
+    correta: "C"
+  },
+  {
+    enunciado: "O que é um alelo?",
+    alternativas: { A: "Uma versão de um gene", B: "Um tipo de cromossomo sexual", C: "Uma organela celular" },
+    correta: "A"
+  },
+  {
+    enunciado: "O que significa ser homozigoto para determinado gene?",
+    alternativas: { A: "Possuir dois alelos diferentes", B: "Possuir dois alelos iguais", C: "Não possuir alelos" },
+    correta: "B"
+  },
+  {
+    enunciado: "O que significa ser heterozigoto para determinado gene?",
+    alternativas: { A: "Possuir dois alelos iguais", B: "Possuir três alelos", C: "Possuir dois alelos diferentes" },
+    correta: "C"
+  },
+  {
+    enunciado: "Em um padrão de dominância completa, qual genótipo representa um indivíduo heterozigoto?",
+    alternativas: { A: "Aa", B: "AA", C: "aa" },
+    correta: "A"
+  },
+  {
+    enunciado: "Em um cruzamento Aa × Aa, qual é a probabilidade de um descendente apresentar genótipo aa?",
+    alternativas: { A: "50%", B: "25%", C: "75%" },
+    correta: "B"
+  },
+  {
+    enunciado: "Qual é a principal função dos ribossomos?",
+    alternativas: { A: "Armazenar o DNA", B: "Realizar a duplicação dos cromossomos", C: "Realizar a síntese de proteínas" },
+    correta: "C"
+  }
+];
+
+/* =========================================================
+   C. GERADOR DE QR CODE (Kazuhiko Arase, licença MIT)
+   ========================================================= */
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+
+/* =========================================================
+   D. ESTADO E ARMAZENAMENTO
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const CHAVE_PARTICIPOU = "desafio_genetica_participou";
+const CHAVE_PROGRESSO  = "desafio_genetica_progresso";
+const CHAVE_COMPUTADOR = "desafio_genetica_computador";
+const POR_JOGO = 3;
+const LETRAS = ["A","B","C"];
+let estado = null, telaAtual = "inicio";
+
+const ls = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+};
+const modoComputador = () => ls.get(CHAVE_COMPUTADOR) === "1";
+const participacao = () => { try{ return JSON.parse(ls.get(CHAVE_PARTICIPOU)); }catch(e){ return null; } };
+const salvarProgresso = () => ls.set(CHAVE_PROGRESSO, JSON.stringify(estado));
+function resetar(){ ls.del(CHAVE_PARTICIPOU); ls.del(CHAVE_PROGRESSO); estado = null; }
+
+/* =========================================================
+   E. VALIDAÇÃO DO BANCO
+   ========================================================= */
+const BANCO = (Array.isArray(PERGUNTAS) ? PERGUNTAS : []).filter(p =>
+  p && typeof p.enunciado === "string" && p.alternativas &&
+  LETRAS.every(l => typeof p.alternativas[l] === "string") && LETRAS.includes(p.correta));
+
+/* =========================================================
+   F. SORTEIO (Fisher–Yates)
+   ========================================================= */
+function fisherYates(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* =========================================================
+   G. NÚMERO GERADO
+   Acertou → SENHA_CADEADO[posição]; errou → outro dígito de 0 a 9.
+   ========================================================= */
+function hash32(str){
+  let h = 0x811c9dc5;
+  for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
+function gerarDigito(pos, idPergunta, letraOriginal){
+  const alvo = SENHA_CADEADO[pos];
+  if(BANCO[idPergunta].correta === letraOriginal) return alvo;
+  const v = hash32(`${SAL}|${pos}|${idPergunta}|${letraOriginal}`) % 9;
+  return v >= alvo ? v + 1 : v;
+}
+
+/* =========================================================
+   H. TELAS
+   ========================================================= */
+function mostrar(nome){
+  telaAtual = nome;
+  if(window.Rede) Rede.brilho(nome === "resultado" ? 1 : nome === "pergunta" ? .92 : .82);
+  ["inicio","pergunta","resultado","bloqueio","erro","relatorio"].forEach(t => $("tela-"+t).classList.toggle("hide", t !== nome));
+  window.scrollTo(0, 0);
+}
+function telaInicio(){
+  clearTimeout(window._volta);
+  $("tag").textContent = modoComputador() ? "computador" : "";
+  mostrar("inicio");
+}
+function telaBloqueio(){
+  const p = participacao();
+  $("codigoAnterior").textContent = p && p.codigo ? `Seu código: ${p.codigo.join(" – ")}` : "";
+  $("tag").textContent = "";
+  mostrar("bloqueio");
+}
+function iniciar(){
+  const nome = $("nome").value.trim().replace(/\s+/g, " ").slice(0, 60);
+  if(nome.length < 2){ $("nome").focus(); return; }
+  const consent = $("consent").checked;
+  const ids = fisherYates(BANCO.map((_, i) => i)).slice(0, POR_JOGO);
+  estado = { id: novoId(), nome, consent, inicio: new Date().toISOString(),
+             ids, ordens: ids.map(() => fisherYates(LETRAS)), escolhas: [], digitos: [], acertos: [], atual: 0 };
+  salvarProgresso();
+  registrar({ id: estado.id, inicio: estado.inicio, nome: consent ? nome : "", consentimento: consent ? "sim" : "não",
+              dispositivo: dispositivo(), modo: modoComputador() ? "computador do estande" : "aparelho próprio" });
+  telaPergunta();
+}
+function marcarProgresso(n){
+  document.querySelectorAll(".dashes i").forEach((el, k) => el.classList.toggle("on", k < n));
+}
+function telaPergunta(){
+  const i = estado.atual, p = BANCO[estado.ids[i]];
+  $("progTxt").textContent = `Pergunta ${i + 1} de ${POR_JOGO}`;
+  $("tag").textContent = "";
+  $("qText").textContent = p.enunciado;
+
+  const box = $("opts"); box.innerHTML = "";
+  estado.ordens[i].forEach((letraOriginal, k) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "opt";
+    b.innerHTML = `<span class="k">${LETRAS[k]}</span><span></span>`;
+    b.lastChild.textContent = p.alternativas[letraOriginal];
+    b.onclick = () => escolher(k);
+    box.appendChild(b);
+  });
+
+  const num = $("num"), hint = $("hint");
+  num.className = "num";
+  if(estado.escolhas[i] != null){
+    travar(estado.escolhas[i]);
+    num.textContent = estado.digitos[i];
+    hint.textContent = "Seu número"; hint.classList.remove("wait");
+    $("btnProxima").disabled = false;
+    marcarProgresso(i + 1);
+  }else{
+    num.classList.add("empty"); num.textContent = "—";
+    hint.textContent = "Escolha uma alternativa"; hint.classList.remove("wait");
+    $("btnProxima").disabled = true;
+    marcarProgresso(i);
+  }
+  $("btnProxima").textContent = i === POR_JOGO - 1 ? "Ver meu código" : "Próxima";
+  mostrar("pergunta");
+}
+function travar(k){
+  document.querySelectorAll(".opt").forEach((b, n) => {
+    b.disabled = true;
+    b.classList.toggle("picked", n === k);
+    if(n === k) b.setAttribute("aria-pressed", "true");
+  });
+}
+function escolher(k){
+  const i = estado.atual;
+  if(estado.escolhas[i] != null) return;
+  const letra = estado.ordens[i][k];
+  const digito = gerarDigito(i, estado.ids[i], letra);
+  estado.escolhas[i] = k; estado.digitos[i] = digito;
+  if(!estado.acertos) estado.acertos = [];
+  estado.acertos[i] = BANCO[estado.ids[i]].correta === letra ? 1 : 0;      // só para a planilha da equipe
+  salvarProgresso();
+  travar(k);
+  marcarProgresso(i + 1);
+  if(window.Rede) Rede.onda(55);                      // pulsos saem do centro da rede a cada resposta
+
+  const num = $("num"), hint = $("hint");
+  const reduzir = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  num.className = "num empty"; num.textContent = "—";
+  hint.textContent = "Gerando número…"; hint.classList.add("wait");
+  setTimeout(() => {
+    num.className = "num"; num.textContent = digito;
+    void num.offsetWidth; num.classList.add("show");
+    hint.classList.remove("wait"); hint.textContent = "Seu número";
+    $("btnProxima").disabled = false;
+    $("btnProxima").focus({ preventScroll: true });
+  }, reduzir ? 0 : 750);
+}
+function proxima(){
+  if(estado.escolhas[estado.atual] == null) return;
+  if(estado.atual < POR_JOGO - 1){ estado.atual++; salvarProgresso(); telaPergunta(); return; }
+  const fim = new Date().toISOString();
+  ls.set(CHAVE_PARTICIPOU, JSON.stringify({ codigo: estado.digitos, em: fim, id: estado.id, nome: estado.nome }));
+  ls.del(CHAVE_PROGRESSO);
+  const acertos = (estado.acertos || []).reduce((a, b) => a + (b || 0), 0);
+  registrar({ id: estado.id, fim,
+              perguntas: estado.ids.map(n => "Q" + (n + 1)).join("; "),
+              acertos_detalhe: estado.ids.map((n, k) => `Q${n + 1}=${estado.acertos[k] ? 1 : 0}`).join("; "),
+              acertos, codigo: estado.digitos.join("-") });
+  telaResultado(estado.digitos);
+}
+function telaResultado(digitos){
+  const c = $("code"); c.innerHTML = "";
+  digitos.forEach((d, k) => {
+    if(k){ const s = document.createElement("span"); s.className = "sep"; s.textContent = "–"; s.style.animationDelay = (k*.14 - .07) + "s"; c.appendChild(s); }
+    const s = document.createElement("span"); s.textContent = d; s.style.animationDelay = (k*.14) + "s"; c.appendChild(s);
+  });
+  c.setAttribute("aria-label", "Seu código: " + digitos.join(", "));
+  const nomeP = (estado && estado.nome) || (participacao() || {}).nome || "";
+  document.querySelector("#tela-resultado .eyebrow").textContent = nomeP ? `Seu código, ${nomeP.split(" ")[0]}` : "Seu código";
+  prepararAvaliacao();
+  if(window.Rede) Rede.onda(150);                     // código revelado: a rede inteira acende
+  const pc = modoComputador();
+  $("tag").textContent = pc ? "computador" : "";
+  $("btnDenovo").disabled = !pc;
+  $("btnDenovo").textContent = pc ? "Próximo participante" : "Jogar novamente";
+  $("denovoNota").textContent = pc ? `Volta ao início em ${VOLTA_SOZINHO_SEG} segundos.` : "Cada pessoa tem uma participação.";
+  clearTimeout(window._volta);
+  if(pc) window._volta = setTimeout(proximoParticipante, VOLTA_SOZINHO_SEG * 1000);
+  mostrar("resultado");
+}
+function proximoParticipante(){
+  resetar();
+  $("nome").value = ""; $("consent").checked = false; $("btnIniciar").disabled = true;
+  telaInicio();
+}
+
+/* =========================================================
+   I. RESET DA EQUIPE: Ctrl+Shift+R segurado por 2 s
+   ========================================================= */
+let segurandoDesde = 0;
+addEventListener("keydown", e => {
+  if(!(e.ctrlKey && e.shiftKey && (e.key === "R" || e.key === "r"))) return;
+  if(telaAtual !== "inicio" && telaAtual !== "bloqueio") return;
+  e.preventDefault();
+  if(!segurandoDesde) segurandoDesde = performance.now();
+  else if(performance.now() - segurandoDesde >= 2000){
+    segurandoDesde = 0; resetar(); telaInicio(); aviso("Participação liberada neste aparelho.");
+  }
+});
+addEventListener("keyup", () => { segurandoDesde = 0; });
+function aviso(txt){
+  const t = document.createElement("div"); t.className = "toast glass"; t.setAttribute("role","status"); t.textContent = txt;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+
+/* =========================================================
+   J. CARTAZ COM QR CODE (?cartaz)
+   ========================================================= */
+const urlDoJogo = () => location.origin + location.pathname;
+function cartaz(){
+  $("app").classList.add("hide"); $("siteHeader").classList.add("hide");
+  $("poster").classList.remove("hide");
+  const qr = qrcode(0, "M"); qr.addData(urlDoJogo()); qr.make();
+  $("qrbox").innerHTML = qr.createSvgTag({ cellSize: 8, margin: 1, scalable: true });
+  $("posterUrl").textContent = urlDoJogo();
+  document.title = "Cartaz · Desafio de Genética";
+}
+$("btnImprimir").onclick = () => print();
+$("btnBaixarQR").onclick = () => {
+  const qr = qrcode(0, "M"); qr.addData(urlDoJogo()); qr.make();
+  const n = qr.getModuleCount(), cel = 24, m = 4, lado = (n + m*2) * cel;
+  const c = document.createElement("canvas"); c.width = c.height = lado;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, lado, lado); g.fillStyle = "#0B1324";
+  for(let r = 0; r < n; r++) for(let col = 0; col < n; col++) if(qr.isDark(r, col)) g.fillRect((col+m)*cel, (r+m)*cel, cel, cel);
+  const a = document.createElement("a"); a.download = "qrcode-desafio-genetica.png"; a.href = c.toDataURL("image/png"); a.click();
+};
+
+/* =========================================================
+   J2. REGISTRO DOS PARTICIPANTES
+   Cada participante recebe um id. Os eventos (início, fim, avaliação)
+   são enviados à planilha do Google e também guardados neste aparelho.
+   Sem internet, ficam numa fila e são reenviados quando a conexão voltar.
+   ========================================================= */
+const CHAVE_FILA = "desafio_genetica_fila";
+const CHAVE_HIST = "desafio_genetica_historico";
+const COLUNAS = ["id","inicio","fim","nome","consentimento","dispositivo","modo","perguntas","acertos_detalhe","acertos","codigo","nota","comentario"];
+
+function novoId(){
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  const sufixo = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `P${String(d.getFullYear()).slice(2)}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}-${sufixo}`;
+}
+function dispositivo(){
+  const toque = matchMedia("(pointer: coarse)").matches, w = Math.min(screen.width || innerWidth, screen.height || innerHeight);
+  return toque ? (w < 600 ? "celular" : "tablet") : "computador";
+}
+const lerLista = k => { try{ const v = JSON.parse(ls.get(k)); return Array.isArray(v) ? v : []; }catch(e){ return []; } };
+function registrar(dados){
+  // histórico local (uma linha por participante, atualizada a cada evento)
+  const hist = lerLista(CHAVE_HIST), i = hist.findIndex(r => r.id === dados.id);
+  if(i >= 0) Object.assign(hist[i], dados); else hist.push(Object.assign({}, dados));
+  ls.set(CHAVE_HIST, JSON.stringify(hist.slice(-2000)));
+  // fila de envio
+  if(!URL_PLANILHA) return;
+  const fila = lerLista(CHAVE_FILA); fila.push(dados);
+  ls.set(CHAVE_FILA, JSON.stringify(fila.slice(-500)));
+  esvaziarFila();
+}
+let enviando = false;
+async function esvaziarFila(){
+  if(!URL_PLANILHA || enviando) return;
+  enviando = true;
+  let fila = lerLista(CHAVE_FILA);
+  while(fila.length){
+    try{
+      await fetch(URL_PLANILHA, { method: "POST", mode: "no-cors", keepalive: true,
+        headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(fila[0]) });
+      fila.shift(); ls.set(CHAVE_FILA, JSON.stringify(fila));
+    }catch(e){ break; }                         // sem conexão: tenta de novo depois
+  }
+  enviando = false;
+}
+addEventListener("online", esvaziarFila);
+setInterval(esvaziarFila, 30000);
+
+/* =========================================================
+   J3. AVALIAÇÃO DO JOGO (nota de 1 a 5)
+   ========================================================= */
+let notaEscolhida = 0;
+const ESTRELA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.6L12 16.6l-5.1 2.6 1-5.6-4.1-4 5.7-.8z" stroke-linejoin="round"/></svg>';
+(function(){
+  const box = $("stars");
+  for(let n = 1; n <= 5; n++){
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "star"; b.innerHTML = ESTRELA;
+    b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false"); b.setAttribute("aria-label", `Nota ${n} de 5`);
+    b.onclick = () => { notaEscolhida = n; pintarEstrelas(); $("btnAvaliar").disabled = false; adiarVolta(); };
+    box.appendChild(b);
+  }
+})();
+function pintarEstrelas(){
+  document.querySelectorAll(".star").forEach((b, k) => {
+    b.classList.toggle("on", k < notaEscolhida);
+    b.setAttribute("aria-checked", k === notaEscolhida - 1 ? "true" : "false");
+  });
+}
+function adiarVolta(){
+  if(!modoComputador() || telaAtual !== "resultado") return;
+  clearTimeout(window._volta);
+  window._volta = setTimeout(proximoParticipante, VOLTA_SOZINHO_SEG * 1000);
+}
+$("comentario").addEventListener("input", adiarVolta);
+function prepararAvaliacao(){
+  const p = participacao() || {};
+  const jaAvaliou = p.avaliou;
+  notaEscolhida = 0; pintarEstrelas();
+  $("comentario").value = ""; $("btnAvaliar").disabled = true;
+  $("rateBox").classList.toggle("sent", !!jaAvaliou);
+  $("rateOk").classList.toggle("hide", !jaAvaliou);
+}
+$("btnAvaliar").onclick = () => {
+  if(!notaEscolhida) return;
+  const p = participacao() || {};
+  const id = (estado && estado.id) || p.id;
+  if(id) registrar({ id, nota: notaEscolhida, comentario: $("comentario").value.trim().slice(0, 300) });
+  ls.set(CHAVE_PARTICIPOU, JSON.stringify(Object.assign(p, { avaliou: true })));
+  $("rateBox").classList.add("sent"); $("rateOk").classList.remove("hide");
+};
+
+/* =========================================================
+   J4. CÓDIGO DA EQUIPE (novo participante e relatório)
+   ========================================================= */
+let acaoEquipe = null;
+function pedirCodigo(texto, acao){
+  acaoEquipe = acao;
+  $("mTxt").textContent = texto;
+  $("codEquipe").value = ""; $("mErr").classList.add("hide");
+  $("modalEquipe").classList.remove("hide");
+  setTimeout(() => $("codEquipe").focus(), 30);
+}
+function fecharModal(){ $("modalEquipe").classList.add("hide"); acaoEquipe = null; }
+$("mCancel").onclick = () => { const voltar = telaAtual === "relatorio" && !relatorioAberto; fecharModal(); if(voltar) location.href = location.pathname; };
+$("formEquipe").onsubmit = e => {
+  e.preventDefault();
+  const cod = $("codEquipe").value.trim();
+  // relatório com planilha: quem confere a senha é o servidor (ela não está neste arquivo)
+  const confereNoServidor = acaoEquipe === abrirRelatorio && URL_PLANILHA;
+  if(!confereNoServidor && cod !== CODIGO_EQUIPE){ $("mErr").classList.remove("hide"); $("codEquipe").select(); return; }
+  const acao = acaoEquipe; fecharModal(); if(acao) acao(cod);
+};
+addEventListener("keydown", e => { if(e.key === "Escape" && !$("modalEquipe").classList.contains("hide")) $("mCancel").click(); });
+$("btnNovoBloq").onclick = () => pedirCodigo("Digite o código da equipe para liberar um novo participante neste aparelho.", () => {
+  proximoParticipante(); aviso("Pronto para o próximo participante.");
+});
+
+/* =========================================================
+   J5. RELATÓRIO (?relatorio)
+   ========================================================= */
+let linhasRelatorio = [], relatorioAberto = false, senhaRelatorio = "";
+const esc = t => String(t == null ? "" : t).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const dataBR = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }); };
+const diaBR = iso => { const d = new Date(iso); return isNaN(d) ? "sem data" : d.toLocaleDateString("pt-BR"); };
+
+async function abrirRelatorio(cod){
+  senhaRelatorio = cod;
+  $("footer").classList.add("hide");
+  mostrar("relatorio");
+  $("repFonte").textContent = "Carregando…";
+  let linhas = null, fonte = "";
+  if(URL_PLANILHA){
+    try{
+      const r = await fetch(`${URL_PLANILHA}?codigo=${encodeURIComponent(cod)}&t=${Date.now()}`);
+      const j = await r.json();
+      if(j && j.ok){ linhas = j.linhas; fonte = `Planilha do Google · todos os aparelhos · atualizado às ${new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`; }
+      else if(j && (j.erro === "código" || j.erro === "senha não configurada")){
+        relatorioAberto = false;
+        pedirCodigo(j.erro === "código" ? "Senha do relatório incorreta. Tente de novo." :
+          "A senha do relatório ainda não foi definida no Apps Script. Veja o passo 2 do guia da planilha.", abrirRelatorio);
+        $("mErr").classList.toggle("hide", j.erro !== "código");
+        return;
+      }
+    }catch(e){}
+  }
+  if(!linhas){
+    linhas = lerLista(CHAVE_HIST);
+    fonte = URL_PLANILHA
+      ? "Não foi possível ler a planilha agora. Mostrando só os registros deste aparelho."
+      : "Planilha ainda não configurada. Mostrando só os registros deste aparelho.";
+  }
+  relatorioAberto = true;
+  linhasRelatorio = linhas.filter(l => l && l.id);
+  $("repFonte").textContent = fonte;
+  if(LINK_PLANILHA){ $("lnkPlan").href = LINK_PLANILHA; $("lnkPlan").classList.remove("hide"); }
+  desenharRelatorio(linhasRelatorio);
+}
+function barras(itens, max, cls = ""){
+  return itens.map(([rot, v, txt]) => `<div class="hbar ${cls}"><span class="lbl" title="${esc(rot)}">${esc(rot)}</span>
+    <span class="trk"><i style="width:${max ? Math.round(v / max * 100) : 0}%"></i></span><span class="val">${esc(txt)}</span></div>`).join("");
+}
+function desenharRelatorio(L){
+  const total = L.length, concl = L.filter(l => l.fim);
+  const notas = L.map(l => +l.nota).filter(n => n >= 1 && n <= 5);
+  const media = notas.length ? (notas.reduce((a, b) => a + b, 0) / notas.length) : 0;
+  const ac = concl.map(l => +l.acertos).filter(n => !isNaN(n));
+  const mediaAc = ac.length ? ac.reduce((a, b) => a + b, 0) / ac.length : 0;
+  const abriram = concl.filter(l => +l.acertos === 3).length;
+  const kpi = (v, t) => `<div class="glass kpi"><b>${v}</b><span>${t}</span></div>`;
+  $("kpis").innerHTML = kpi(total, "participantes") + kpi(concl.length, "concluíram o desafio")
+    + kpi(notas.length ? media.toFixed(1).replace(".", ",") : "—", `nota média (${notas.length} avaliações)`)
+    + kpi(concl.length ? Math.round(abriram / concl.length * 100) + "%" : "—", "acertaram as 3");
+
+  const dist = [5,4,3,2,1].map(n => { const c = notas.filter(x => x === n).length; return [`${n} ★`, c, String(c)]; });
+  $("repNotas").innerHTML = notas.length ? barras(dist, Math.max(...dist.map(d => d[1]))) : '<p class="vazio">Nenhuma avaliação ainda.</p>';
+
+  const dias = {}; L.forEach(l => { const d = diaBR(l.inicio || l.fim); dias[d] = (dias[d] || 0) + 1; });
+  const listaDias = Object.entries(dias).map(([d, c]) => [d, c, String(c)]);
+  $("repDias").innerHTML = listaDias.length ? barras(listaDias, Math.max(...listaDias.map(d => d[1]))) : '<p class="vazio">Sem registros.</p>';
+
+  const porQ = {};
+  concl.forEach(l => String(l.acertos_detalhe || "").split(";").forEach(par => {
+    const m = par.trim().match(/^Q(\d+)=(\d)$/); if(!m) return;
+    const q = +m[1]; porQ[q] = porQ[q] || [0, 0]; porQ[q][0] += +m[2]; porQ[q][1]++;
+  }));
+  const listaQ = Object.entries(porQ).sort((a, b) => a[0] - b[0]).map(([q, [ok, n]]) => {
+    const enun = (BANCO[q - 1] || {}).enunciado || "";
+    return [`Q${q} · ${enun}`, ok / n, `${Math.round(ok / n * 100)}%`];
+  });
+  $("repPerg").innerHTML = listaQ.length ? barras(listaQ, 1, "q") + `<p class="vazio" style="margin-top:10px">Média de acertos: ${mediaAc.toFixed(2).replace(".", ",")} de 3 por participante.</p>`
+                                         : '<p class="vazio">Nenhum desafio concluído ainda.</p>';
+
+  const ult = L.slice().sort((a, b) => String(b.inicio).localeCompare(String(a.inicio))).slice(0, 40);
+  $("repTab").innerHTML = "<tr><th>Data</th><th>Nome</th><th>Aparelho</th><th>Acertos</th><th>Código</th><th>Nota</th><th>Comentário</th></tr>"
+    + (ult.length ? ult.map(l => `<tr><td>${esc(dataBR(l.inicio))}</td><td>${esc(l.nome || (l.consentimento === "não" ? "(sem autorização)" : ""))}</td>
+        <td>${esc(l.dispositivo)}</td><td>${l.fim ? esc(l.acertos) + "/3" : "não concluiu"}</td><td>${esc(l.codigo)}</td>
+        <td>${l.nota ? esc(l.nota) + " ★" : ""}</td><td>${esc(l.comentario)}</td></tr>`).join("")
+       : '<tr><td colspan="7" class="vazio">Sem registros.</td></tr>');
+}
+$("btnCSV").onclick = () => {
+  const linhas = [COLUNAS.join(";")].concat(linhasRelatorio.map(l => COLUNAS.map(c => {
+    let v = l[c] == null ? "" : String(l[c]);
+    if((c === "inicio" || c === "fim") && v) v = dataBR(v);
+    return /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  }).join(";")));
+  const blob = new Blob(["\ufeff" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `desafio-genetica-participantes-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+$("btnAtualizar").onclick = () => abrirRelatorio(senhaRelatorio);
+$("btnSairRel").onclick = () => { location.href = location.pathname; };
+
+/* =========================================================
+   K. EVENTOS E INÍCIO
+   ========================================================= */
+$("nome").addEventListener("input", () => { $("btnIniciar").disabled = $("nome").value.trim().length < 2; });
+$("formEntrada").onsubmit = e => { e.preventDefault(); iniciar(); };
+$("btnProxima").onclick = proxima;
+$("btnDenovo").onclick = () => { if(modoComputador()) proximoParticipante(); };
+
+(function(){
+  const q = new URLSearchParams(location.search);
+  let limpar = false;
+  if(q.has("computador")){ q.get("computador") === "0" ? ls.del(CHAVE_COMPUTADOR) : ls.set(CHAVE_COMPUTADOR, "1"); limpar = true; }
+  if(q.get("reset") === CHAVE_RESET){ resetar(); limpar = true; }
+  if(q.has("cartaz")){ cartaz(); return; }
+  esvaziarFila();
+  if(q.has("relatorio")){
+    mostrar("relatorio"); $("footer").classList.add("hide"); $("repFonte").textContent = "";
+    pedirCodigo(URL_PLANILHA ? "Digite a senha do relatório." : "Digite o código da equipe para ver os registros deste aparelho.", abrirRelatorio);
+    return;
+  }
+  if(limpar) history.replaceState(null, "", location.pathname);
+
+  if(BANCO.length < POR_JOGO){
+    $("erroTxt").textContent = `O banco tem ${BANCO.length} pergunta(s) válida(s) e o desafio precisa de pelo menos ${POR_JOGO}. Avise a equipe do estande.`;
+    mostrar("erro"); return;
+  }
+  if(participacao()){
+    if(modoComputador()){ resetar(); telaInicio(); return; }
+    telaBloqueio(); return;
+  }
+  try{
+    const salvo = JSON.parse(ls.get(CHAVE_PROGRESSO));
+    if(salvo && Array.isArray(salvo.ids) && salvo.ids.length === POR_JOGO && salvo.ids.every(id => BANCO[id])){
+      estado = salvo; telaPergunta(); return;
+    }
+  }catch(e){}
+  telaInicio();
+})();
+
+/* Fundo estático (assets/dna-bg.jpg) quando:
+   - a pessoa prefere menos movimento, ou
+   - o Three.js não carregou em 6 s (sem internet ou sem WebGL). */
+if(matchMedia("(prefers-reduced-motion: reduce)").matches) document.body.classList.add("static-bg");
+setTimeout(() => { if(!window.__dnaOK) document.body.classList.add("static-bg"); }, 6000);
+</script>
+
+<script>
+/* ===== REDE ANIMADA ===== */
+/* Rede radial de fios agrupados (edge bundling hierárquico), inspirada na imagem de referência.
+   - Camada fixa: todos os fios, desenhados UMA vez num canvas.
+   - Rotação lenta e "respiração": feitas em CSS (rodam na placa de vídeo, sem custo de desenho).
+   - Camada viva: um canvas menor onde só os pulsos de luz são redesenhados a cada quadro.
+   - Proteção: se o aparelho não aguentar, os pulsos são reduzidos automaticamente.
+   - Reage ao jogo: Rede.onda() e Rede.brilho(0..1). Com movimento reduzido, fica estática.
+   - Se algo falhar, a rede some sem afetar o jogo. */
+(function(){
+  const raiz = document.getElementById("rede");
+  const API = window.Rede = { onda(){}, brilho(){} };          // sem efeito até a figura ficar pronta
+  if(!raiz) return;
+  try{
+    const TAU = Math.PI * 2;
+    const reduz = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // cores (fundo claro): verde-azulado, areia e azul — os tons da imagem de referência
+    const COR = [[44,150,178], [186,160,88], [74,118,196]];
+    const PULSO = "0,150,205";
+
+    // gerador pseudoaleatório fixo: a figura é sempre a mesma em cada visita
+    function semente(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+    /* ---------- geometria em coordenadas unitárias (raio 1) ---------- */
+    function bspline(P, S){
+      const Q = [P[0], P[0]].concat(P, [P[P.length - 1], P[P.length - 1]]);
+      const segs = Q.length - 3, out = new Float32Array(S * 2);
+      for(let s = 0; s < S; s++){
+        const u = s / (S - 1) * segs, i = Math.min(Math.floor(u), segs - 1), t = u - i, t2 = t * t, t3 = t2 * t;
+        const b0 = (1 - 3*t + 3*t2 - t3) / 6, b1 = (4 - 6*t2 + 3*t3) / 6, b2 = (1 + 3*t + 3*t2 - 3*t3) / 6, b3 = t3 / 6;
+        out[s*2]     = b0*Q[i][0] + b1*Q[i+1][0] + b2*Q[i+2][0] + b3*Q[i+3][0];
+        out[s*2 + 1] = b0*Q[i][1] + b1*Q[i+1][1] + b2*Q[i+2][1] + b3*Q[i+3][1];
+      }
+      return out;
+    }
+    function reta(P, beta){                                       // puxa os pontos de controle para a reta (Holten)
+      const n = P.length, a = P[0], b = P[n - 1];
+      return P.map((p, i) => [beta*p[0] + (1 - beta)*(a[0] + i/(n - 1)*(b[0] - a[0])),
+                              beta*p[1] + (1 - beta)*(a[1] + i/(n - 1)*(b[1] - a[1]))]);
+    }
+    function construir(N, ligacoes){
+      const rnd = semente(20261021), K = 5;
+      const hubs = [], subs = [], galhos = [];
+      for(let k = 0; k < K; k++){
+        hubs.push({ a: k / K * TAU + (rnd() - .5) * .55, r: .18 + rnd() * .16, cor: k % 5 === 1 || k % 5 === 3 ? 1 : 0 });
+      }
+      hubs.forEach((h, k) => {
+        const m = 3 + Math.floor(rnd() * 3), span = TAU / K * .5;
+        for(let j = 0; j < m; j++){
+          subs.push({ a: h.a + (j / (m - 1) - .5) * 2 * span + (rnd() - .5) * .1, r: .46 + rnd() * .16, hub: k });
+        }
+      });
+      subs.forEach((s, j) => {                                                  // terceiro nível: galhos finos perto da borda
+        const m = 2 + Math.floor(rnd() * 3);
+        for(let q = 0; q < m; q++) galhos.push({ a: s.a + (q / (m - 1) - .5) * .20 + (rnd() - .5) * .03, r: .74 + rnd() * .08, sub: j });
+      });
+      const pos = (a, r, j) => [Math.cos(a) * r + (rnd() - .5) * j, Math.sin(a) * r + (rnd() - .5) * j];
+      const dang = (x, y) => Math.abs(((x - y) % TAU + 3 * Math.PI) % TAU - Math.PI);
+      const folhas = [];
+      for(let i = 0; i < N; i++){
+        const th = i / N * TAU;
+        let melhor = 0, d = 9;
+        galhos.forEach((g, j) => { const e = dang(th, g.a); if(e < d){ d = e; melhor = j; } });
+        const g = galhos[melhor];
+        folhas.push({ th, galho: melhor, sub: g.sub, hub: subs[g.sub].hub });
+      }
+      const trilhas = [];
+      // caminho da folha até o centro do seu grupo: folha → galho → sub-centro → centro
+      const rota = f => [[Math.cos(f.th), Math.sin(f.th)], pos(galhos[f.galho].a, galhos[f.galho].r, .035),
+                         pos(subs[f.sub].a, subs[f.sub].r, .045), pos(hubs[f.hub].a, hubs[f.hub].r, .05)];
+      const nucleo = () => [(rnd() - .5) * .02, (rnd() - .5) * .02];
+      // 1) cada folha liga ao núcleo
+      folhas.forEach(f => trilhas.push({ pts: bspline(reta(rota(f).concat([nucleo()]), .9), 28), cor: hubs[f.hub].cor, tipo: 0 }));
+      // 2) ligações entre folhas, subindo até o ancestral comum
+      for(let n = 0; n < ligacoes; n++){
+        const fi = folhas[Math.floor(rnd() * N)];
+        let fj = folhas[Math.floor(rnd() * N)];
+        if(rnd() < .6){ let t = 0; while(fj.hub !== fi.hub && t++ < 40) fj = folhas[Math.floor(rnd() * N)]; }
+        const A = rota(fi), B = rota(fj);
+        let P;
+        if(fi.galho === fj.galho) P = [A[0], A[1], B[0]];
+        else if(fi.sub === fj.sub) P = [A[0], A[1], A[2], B[1], B[0]];
+        else if(fi.hub === fj.hub) P = [A[0], A[1], A[2], A[3], B[2], B[1], B[0]];
+        else P = [A[0], A[1], A[2], A[3], nucleo(), B[3], B[2], B[1], B[0]];
+        trilhas.push({ pts: bspline(reta(P, .88), 36), cor: hubs[fi.hub].cor === 1 ? 2 : 0, tipo: 1 });
+      }
+      return trilhas;
+    }
+
+    /* ---------- estado ---------- */
+    let W = 0, H = 0, dpr = 1, D = 0, cx = 0, cy = 0, trilhas = [], nFolhas = 0;
+    let estatico = null, vivo = null, ctxV = null, kV = 1, dpV = 1, pronto = false, leve = false;
+    let pulsos = [], intens = .85, alvo = .85, rodando = true, ultimo = 0, t0 = performance.now(), nQ = 0, somaDt = 0;
+
+    function novoPulso(onda){
+      const i = Math.floor(Math.random() * nFolhas);                            // só fios folha→núcleo
+      const p = { i, dir: onda ? -1 : (Math.random() < .5 ? 1 : -1), v: onda ? .55 + Math.random() * .25 : .10 + Math.random() * .12,
+                  cauda: .10 + Math.random() * .08, atraso: onda ? Math.random() * .5 : 0, w: 1 + Math.random() * .8, temp: !!onda };
+      p.u = p.dir > 0 ? -p.cauda : 1 + p.cauda;                                 // posição da cabeça (0 = folha, 1 = núcleo)
+      return p;
+    }
+
+    /* ---------- camada fixa: desenhada uma vez ---------- */
+    function montar(){
+      W = innerWidth; H = innerHeight;
+      dpr = Math.min(devicePixelRatio || 1, W < 700 ? 1.5 : 1.75);
+      cx = W * (W < 760 ? .5 : .58); cy = H * .52;                              // levemente à direita no computador
+      D = W < 760 ? H * .92 : Math.min(H * 1.12, W * .9);
+      const folhas = W < 700 ? 520 : 1100, lig = W < 700 ? 900 : 2300;
+      if(!trilhas.length || nFolhas !== folhas){ nFolhas = folhas; trilhas = construir(folhas, lig); }
+
+      const S = D * 1.05;                                                       // lado da figura em px (cobre -1,05…1,05 do raio)
+      raiz.innerHTML = "";
+      const fig = document.createElement("div"), resp = document.createElement("div");
+      fig.className = "rede-fig"; resp.className = "rede-resp";
+      fig.style.cssText = `left:${(cx - S / 2).toFixed(1)}px;top:${(cy - S / 2).toFixed(1)}px;width:${S.toFixed(1)}px;height:${S.toFixed(1)}px`;
+      estatico = document.createElement("canvas"); vivo = document.createElement("canvas");
+      resp.appendChild(estatico); resp.appendChild(vivo); fig.appendChild(resp); raiz.appendChild(fig);
+
+      const px = Math.round(S * dpr); estatico.width = estatico.height = px;
+      const c = estatico.getContext("2d"), k = px / 2.1;
+      c.setTransform(k, 0, 0, k, px / 2, px / 2);
+      c.lineCap = "round"; c.lineJoin = "round";
+      [1, 0].forEach(tipo => trilhas.forEach(t => {                             // ligações cruzadas primeiro, fios de folha por cima
+        if(t.tipo !== tipo) return;
+        const cor = COR[t.cor];
+        c.strokeStyle = `rgba(${cor[0]},${cor[1]},${cor[2]},${tipo ? .10 : .30})`;
+        c.lineWidth = (tipo ? .7 : .8) * dpr / k;
+        c.beginPath(); c.moveTo(t.pts[0], t.pts[1]);
+        for(let s = 1; s < t.pts.length / 2; s++) c.lineTo(t.pts[s*2], t.pts[s*2 + 1]);
+        c.stroke();
+      }));
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, .16);                     // brilho do núcleo
+      g.addColorStop(0, "rgba(255,255,255,.95)"); g.addColorStop(.3, "rgba(236,250,255,.6)"); g.addColorStop(1, "rgba(255,255,255,0)");
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, .16, 0, TAU); c.fill();
+      c.fillStyle = "rgba(44,120,150,.55)";                                     // pontos nas folhas
+      for(let i = 0; i < nFolhas; i += 2){ const t = trilhas[i]; c.beginPath(); c.arc(t.pts[0], t.pts[1], 1.1 * dpr / k, 0, TAU); c.fill(); }
+      estatico.style.opacity = (.6 + .4 * alvo).toFixed(2);
+
+      // camada viva: resolução menor (os pulsos são finos e brilhantes), só eles são redesenhados
+      dpV = Math.min(dpr, 1.25); const pv = Math.round(S * dpV);
+      vivo.width = vivo.height = pv; ctxV = vivo.getContext("2d"); kV = pv / 2.1;
+
+      const qtd = leve ? 16 : (W < 700 ? 40 : 80);
+      pulsos = pulsos.filter(p => !p.temp);
+      while(pulsos.length < qtd) pulsos.push(novoPulso(false));
+      pulsos.length = Math.min(pulsos.length, qtd);
+      pulsos.forEach(p => { p.u = Math.random() * 1.2 - .1; });
+      pronto = true;
+    }
+
+    /* ---------- camada viva: só os pulsos de luz ---------- */
+    function ponto(tr, i){
+      const a = Math.floor(i), b = Math.min(a + 1, tr.length / 2 - 1), f = i - a;
+      return [tr[a*2] + (tr[b*2] - tr[a*2]) * f, tr[a*2 + 1] + (tr[b*2 + 1] - tr[a*2 + 1]) * f];
+    }
+    function desenhar(dt){
+      if(!pronto) return;
+      const w = vivo.width;
+      ctxV.setTransform(1, 0, 0, 1, 0, 0); ctxV.clearRect(0, 0, w, w);
+      if(reduz) return;
+      ctxV.setTransform(kV, 0, 0, kV, w / 2, w / 2); ctxV.lineCap = "round";
+      let fimTemp = false;
+      for(const p of pulsos){
+        if(p.atraso > 0){ p.atraso -= dt; continue; }
+        const tr = trilhas[p.i].pts, n = tr.length / 2 - 1;
+        p.u += p.dir * p.v * dt;                                                // dir > 0: folha → núcleo; dir < 0: o contrário
+        if(p.dir > 0 ? p.u > 1 + p.cauda : p.u < -p.cauda){
+          if(p.temp){ p.morto = true; fimTemp = true; continue; }               // pulso de onda: some
+          Object.assign(p, novoPulso(false)); continue;
+        }
+        const passos = 4;
+        for(let s = 0; s < passos; s++){
+          const u0 = p.u - p.dir * p.cauda * (s + 1) / passos, u1 = p.u - p.dir * p.cauda * s / passos;
+          const a = Math.max(0, Math.min(1, u0)), b = Math.max(0, Math.min(1, u1));
+          if(a === b) continue;
+          const f = 1 - s / passos;
+          ctxV.strokeStyle = `rgba(${PULSO},${(.75 * f * f * (.5 + .5 * intens)).toFixed(3)})`;
+          ctxV.lineWidth = (.7 + 1.1 * f) * p.w * dpV / kV;
+          ctxV.beginPath();
+          const pa = ponto(tr, a * n), pb = ponto(tr, b * n);
+          ctxV.moveTo(pa[0], pa[1]); ctxV.lineTo(pb[0], pb[1]);
+          ctxV.stroke();
+        }
+        const h = Math.max(0, Math.min(1, p.u));                                // cabeça brilhante
+        if(h > 0 && h < 1){
+          const q = ponto(tr, h * n);
+          ctxV.fillStyle = `rgba(${PULSO},${(.55 * (.5 + .5 * intens)).toFixed(3)})`;
+          ctxV.beginPath(); ctxV.arc(q[0], q[1], 1.8 * p.w * dpV / kV, 0, TAU); ctxV.fill();
+        }
+      }
+      if(fimTemp) pulsos = pulsos.filter(p => !p.morto);
+    }
+
+    /* ---------- ciclo e proteção de desempenho ---------- */
+    function aliviar(){ leve = true; pulsos = pulsos.filter(p => !p.temp).slice(0, 16); }
+    function ciclo(agora){
+      if(!rodando) return;
+      const bruto = agora - (ultimo || agora); ultimo = agora;
+      const dt = Math.min(.05, bruto / 1000);
+      intens += (alvo - intens) * Math.min(1, dt * 2.2);
+      // depois de 2,5 s (a página terminou de carregar), mede ~90 quadros; média acima de 45 ms = aparelho lento
+      if(!leve && agora - t0 > 2500 && nQ < 90 && bruto > 0 && bruto < 1000){
+        somaDt += bruto;
+        if(++nQ === 90 && somaDt / 90 > 45) aliviar();
+      }
+      desenhar(dt);
+      requestAnimationFrame(ciclo);
+    }
+    let espera = 0;
+    addEventListener("resize", () => { clearTimeout(espera); espera = setTimeout(() => { montar(); if(reduz) desenhar(0); }, 160); });
+    document.addEventListener("visibilitychange", () => {
+      rodando = !document.hidden; ultimo = 0;
+      if(rodando && !reduz) requestAnimationFrame(ciclo);
+    });
+
+    montar();
+    if(!reduz) requestAnimationFrame(ciclo);
+
+    /* ---------- API usada pelo jogo ---------- */
+    API.brilho = v => { alvo = Math.max(.4, Math.min(1, v)); if(estatico) estatico.style.opacity = (.6 + .4 * alvo).toFixed(2); };
+    API.onda = (n = 60) => {                                                    // pulsos saem do núcleo para a borda
+      if(reduz || !pronto || leve) return;
+      for(let i = 0; i < n; i++){ const p = novoPulso(true); p.dir = -1; p.u = 1 + p.cauda; pulsos.push(p); }
+      if(pulsos.length > 220) pulsos.splice(0, pulsos.length - 220);
+    };
+    API._teste = { desenhar, aliviar, get pulsos(){ return pulsos; }, get leve(){ return leve; } };
+  }catch(e){
+    raiz.style.display = "none";
+  }
+})();
+/* ===== FIM REDE ===== */
+</script>
+
+<!-- =========================================================
+     L. DNA 3D — hélice azul translúcida, inspirada na imagem de referência
+     ========================================================= -->
+<script type="module">
+import * as THREE from "three";
+
+if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+try{
+  const COMPL = 0.62;             // altura de cada passo da hélice
+  const AZUL  = 0x62b0ea, CIANO = 0x35d0f2, BRILHO = 0x3d91c9;
+
+  /* material de vidro azul: translúcido, com verniz e brilho ciano nas bordas */
+  function materialVidro(intensidade = 1){
+    return new THREE.MeshPhysicalMaterial({
+      color: AZUL, emissive: 0x3a8fd8, emissiveIntensity: 0.32 * intensidade,
+      roughness: 0.2, metalness: 0,
+      clearcoat: 1, clearcoatRoughness: 0.18,
+      sheen: 1, sheenColor: new THREE.Color(CIANO), sheenRoughness: 0.35,
+      transparent: true, opacity: 0.66
+    });
+  }
+
+  /* constrói uma hélice com espinhas "granuladas" e degraus de pares de base */
+  function criarHelice({ voltas = 3.4, raio = 1.15, passos = 56, contas = 360 } = {}){
+    const g = new THREE.Group();
+    const mat = materialVidro(), matPar = materialVidro(.8);
+    const altura = passos * COMPL * 0.5;
+    const ponto = (t, fase) => {
+      const a = t * voltas * Math.PI * 2 + fase;
+      return new THREE.Vector3(Math.cos(a) * raio, (t - .5) * altura, Math.sin(a) * raio);
+    };
+    // espinha açúcar-fosfato: tubo + contas sobrepostas, que dão a textura irregular da imagem
+    const esfera = new THREE.SphereGeometry(1, 14, 10);
+    [0, Math.PI].forEach(fase => {
+      const pts = Array.from({ length: 120 }, (_, i) => ponto(i / 119, fase));
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 400, 0.13, 12, false), mat));
+      const contasMesh = new THREE.InstancedMesh(esfera, mat, contas);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+      for(let i = 0; i < contas; i++){
+        const p = ponto(i / (contas - 1), fase);
+        const r = 0.16 + 0.05 * Math.sin(i * 1.7) + 0.03 * Math.sin(i * 0.37);
+        s.set(r, r * 1.25, r);
+        q.setFromEuler(new THREE.Euler(i * .3, i * .7, 0));
+        m.compose(p, q, s); contasMesh.setMatrixAt(i, m);
+      }
+      g.add(contasMesh);
+    });
+    // pares de base: dois bastões que se encontram no meio, com "nós" nas pontas (instanciados)
+    const cima = new THREE.Vector3(0, 1, 0);
+    const bast = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.055, 0.075, 1, 10), matPar, passos * 2);
+    const nos  = new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 12, 10), matPar, passos * 2);
+    const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), UM = new THREE.Vector3(1,1,1);
+    let n = 0;
+    for(let k = 0; k < passos; k++){
+      const t = (k + .5) / passos, a = ponto(t, 0), b = ponto(t, Math.PI), meio = a.clone().lerp(b, .5);
+      [a, b].forEach(de => {
+        const v = meio.clone().sub(de), len = v.length() * .92;
+        Q.setFromUnitVectors(cima, v.clone().normalize());
+        P.copy(de).add(v.clone().multiplyScalar(.48)); S.set(1, len, 1);
+        M.compose(P, Q, S); bast.setMatrixAt(n, M);
+        M.compose(de.clone().lerp(meio, .9), Q, UM); nos.setMatrixAt(n, M);
+        n++;
+      });
+    }
+    g.add(bast); g.add(nos);
+    return g;
+  }
+
+  /* cena genérica: renderer + câmera + luzes azuis */
+  function cena(canvas, dpr){
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(dpr);
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xE6F1F9, 0.034);
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.set(0, 0, 14);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.05));
+    const l1 = new THREE.PointLight(0x4aa0ff, 45, 40, 2); l1.position.set(-5, 4, 7); scene.add(l1);   // azul principal
+    const l2 = new THREE.PointLight(CIANO, 18, 30, 2);    l2.position.set(6, -3, 4);  scene.add(l2);   // ciano de contorno
+    const l3 = new THREE.DirectionalLight(0xffffff, 0.9); l3.position.set(0, 6, -6);  scene.add(l3);   // luz de trás: recorte
+    return { renderer, scene, camera };
+  }
+
+  const dpr = Math.min(window.devicePixelRatio || 1, Math.min(window.innerWidth, window.innerHeight) < 600 ? 1.6 : 2);
+  const frente = cena(document.getElementById("dna-canvas"), dpr);
+  const fundo  = cena(document.getElementById("dna-back"), 1);          // camada desfocada: resolução baixa basta   // desfocado: pode ter menos resolução
+
+  // hélice principal, em diagonal como na imagem de referência
+  const pequeno = Math.min(window.innerWidth, window.innerHeight) < 600;   // celular
+  const principal = criarHelice({ voltas: 3.2, raio: 1.2, passos: 60, contas: pequeno ? 240 : 380 });
+  const pivoP = new THREE.Group(); pivoP.add(principal); frente.scene.add(pivoP);
+
+  // duas hélices distantes nas laterais (desfocadas pelo CSS)
+  const esq = criarHelice({ voltas: 2.6, raio: 1.3, passos: 44, contas: pequeno ? 150 : 260 });
+  const dir = criarHelice({ voltas: 2.6, raio: 1.3, passos: 44, contas: pequeno ? 150 : 260 });
+  const pivoE = new THREE.Group(); pivoE.add(esq); fundo.scene.add(pivoE);
+  const pivoD = new THREE.Group(); pivoD.add(dir); fundo.scene.add(pivoD);
+
+  // poeira fina azulada, só na camada da frente
+  const NP = window.innerWidth < 640 ? 70 : 140, pos = new Float32Array(NP * 3);
+  for(let i = 0; i < NP; i++){ pos[i*3] = (Math.random()-.5)*22; pos[i*3+1] = (Math.random()-.5)*14; pos[i*3+2] = (Math.random()-.5)*8 - 2; }
+  const gp = new THREE.BufferGeometry(); gp.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const poeira = new THREE.Points(gp, new THREE.PointsMaterial({ color: 0x7cc6ff, size: 0.035, transparent: true, opacity: 0.45 }));
+  frente.scene.add(poeira);
+
+  function ajustar(){
+    const w = window.innerWidth, h = window.innerHeight, aspecto = w / h;
+    [frente, fundo].forEach(({ renderer, camera }) => {
+      renderer.setSize(w, h, false); camera.aspect = aspecto; camera.updateProjectionMatrix();
+    });
+    // meia largura visível no plano da hélice principal (z = 0) e das distantes (z ≈ -6,5)
+    const tg = Math.tan(THREE.MathUtils.degToRad(19));
+    const meiaL = tg * 14 * aspecto, meiaLf = tg * 20.5 * aspecto, meiaAf = tg * 20.5;
+    let giro, desloc, escala;
+    if(aspecto < 0.62){ giro = -0.30; desloc = 0.35; escala = 0.72; }        // celular em pé
+    else if(aspecto < 1.0){ giro = -0.50; desloc = 0.25 * meiaL; escala = 1.0; }  // tablet em pé
+    else if(aspecto < 1.5){ giro = -0.68; desloc = 0.34 * meiaL; escala = 1.15; } // tablet deitado, notebook 4:3
+    else { giro = -0.78; desloc = 0.46 * meiaL; escala = 1.3; }              // computador e celular deitado
+    // diagonal do canto superior esquerdo ao inferior direito, como na imagem de referência
+    pivoP.rotation.set(0.15, 0, giro);
+    pivoP.position.set(desloc, 0, 0);
+    pivoP.scale.setScalar(escala);
+    pivoE.position.set(-0.72 * meiaLf, -0.42 * meiaAf, -6);   pivoE.rotation.set(0, 0, -0.35); pivoE.scale.setScalar(1.1);
+    pivoD.position.set( 0.74 * meiaLf,  0.46 * meiaAf, -7);   pivoD.rotation.set(0, 0, -0.95); pivoD.scale.setScalar(1.25);
+  }
+  ajustar();
+  window.addEventListener("resize", ajustar);
+
+  let rodando = true, t0 = performance.now(), comFundo = true;
+  let amostras = 0, somaDt = 0, anterior = 0;
+  function medirDesempenho(agora){
+    if(amostras < 0) return;                       // já decidido
+    if(anterior){ somaDt += agora - anterior; amostras++; }
+    anterior = agora;
+    if(amostras === 90){                           // ~1,5 s de animação
+      const media = somaDt / amostras;
+      if(media > 34){                              // abaixo de ~30 quadros por segundo
+        comFundo = false;
+        document.getElementById("dna-back").style.display = "none";
+        frente.renderer.setPixelRatio(1); ajustar();
+      }
+      amostras = -1;
+    }
+  }
+  function quadro(agora){
+    if(!rodando) return;
+    medirDesempenho(agora);
+    const t = (agora - t0) / 1000;
+    principal.rotation.y = t * 0.12;                         // rotação lenta em torno do eixo
+    principal.position.y = Math.sin(t * 0.45) * 0.18;        // leve onda
+    pivoP.rotation.x = 0.15 + Math.sin(t * 0.3) * 0.04;
+    esq.rotation.y = -t * 0.08;  dir.rotation.y = t * 0.07;
+    esq.position.y = Math.sin(t * 0.35 + 1) * 0.25; dir.position.y = Math.sin(t * 0.32 + 2) * 0.25;
+    poeira.rotation.y = t * 0.01;
+    frente.renderer.render(frente.scene, frente.camera);
+    if(comFundo) fundo.renderer.render(fundo.scene, fundo.camera);
+    requestAnimationFrame(quadro);
+  }
+  requestAnimationFrame(quadro);
+
+  document.addEventListener("visibilitychange", () => {
+    rodando = !document.hidden;
+    anterior = 0;                                   // não conta o tempo em que a aba ficou escondida
+    if(rodando) requestAnimationFrame(quadro);
+  });
+
+  window.__dnaOK = true;
+}catch(err){
+  document.body.classList.add("static-bg");
+}
+}
+</script>
+</body>
+</html>
